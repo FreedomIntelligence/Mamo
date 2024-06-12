@@ -6,12 +6,9 @@ from tqdm import tqdm
 from coptpy import *
 import logging
 import os
-import openai
 import random
 import json
 import shutil   
-
-openai.api_base = ""
 
 prompt = """
 You are experienced engineer in optimization, please fix the errors to make sure the code can run successfully.
@@ -37,31 +34,14 @@ The correct lp code is:
 
 
 error_code = []
+query = []
+prompts = []
 def generate_query(code):
     chatgpt_query = prompt
     # print(data)
     chatgpt_query = chatgpt_query.format_map({'lp_code': f'{code}'})
     return chatgpt_query
 
-class OpenAIModel:
-    def __init__(self, model_name, keys_path):
-        self.model_name = model_name
-        with open(keys_path, encoding="utf-8") as fr:
-            self.keys = [line.strip() for line in fr if len(line.strip()) >= 4]
-
-    def call(self, message, temp = 0.8):
-        try:
-            current_key = random.choice(self.keys)
-            openai.api_key = current_key
-            response = openai.ChatCompletion.create(
-                model=self.model_name,
-                messages=[{"role": "user", "content": message}],
-                temperature=temp
-            )
-            return response
-        except Exception as e:
-            print(f"API call failed: {e}")
-            return None
 
 def read_jsonl_file( error_dir):
     error_id = []
@@ -75,6 +55,7 @@ def read_jsonl_file( error_dir):
         with open(item, 'r', encoding='utf-8') as code_file:
             code_content = code_file.read()
             code.append(code_content)
+
     return code, error_id
 
 def write_response(content, output_path):
@@ -84,29 +65,30 @@ def write_response(content, output_path):
     except Exception as e:
         print(f"Failed to write file {output_path}: {e}")
 
-def process_data(error_dir, output_dir, model):
+def process_data(error_dir, output_dir):
     code,  ids = read_jsonl_file(error_dir)
     # 39/ 346
     for i in tqdm(range(len(ids)), desc="Processing data"):
-        response = model.call(generate_query(code[i]))
-        if response:
-            content = response['choices'][0]['message']['content']
-            output_path = output_dir / f"lp_model_{ids[i]}.lp"
-            write_response(content, output_path)
+        prompts.append(generate_query(code[i]))
+        # response = model.call(generate_query(code[i]))
+        query.append({
+            'id': ids[i],
+            'query': prompts[i]
+        })
+
+    output_path = output_dir / f"lp_errors_query.jsonl"
+    with open(output_path, 'w', encoding='utf-8') as file:
+        for item in query:
+            file.write(json.dumps(item) + '\n')
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description="Process data using OpenAI models.")
     parser.add_argument('-e', '--error_dir', type=str, help="Error directiory.")
     parser.add_argument('-o', '--output_dir', type=str, help="Output directory for corrected py files.")
-    parser.add_argument('-k', '--keys_path', type=str, help="File path containing API keys.")
-    parser.add_argument('-m', '--model_name', type=str, default="gpt-4", help="OpenAI model name.")
-    parser.add_argument('--temperature', type=float, default=0.8, help="Response temperature.")
     
     args = parser.parse_args()
     
     
     output_dir = Path(args.output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
-    
-    model = OpenAIModel(model_name=args.model_name, keys_path=args.keys_path)
-    process_data(args.error_dir, output_dir, model)
+    process_data(args.error_dir, output_dir)

@@ -54,13 +54,16 @@ def compare_output_with_standard(output, standard_answer):
     # First take the difference and take the absolute value
     if '.' in standard_answer:
         digit = len(standard_answer.split('.')[1])
+        if digit <= 2:
+            digit = 2 
         s_ans = float(standard_answer) * 10 ** digit
         ans = float_output * 10 ** digit
-        return (abs(ans - s_ans) <= 1 or comp(output, standard_answer))
+        return (abs(ans - s_ans) < 1 or comp(output, standard_answer))
     else:
-        s_ans = float(standard_answer)
-        ans = float_output
-        return (abs(ans - s_ans) <= 1 or comp(output, standard_answer))
+        digit = 2
+        s_ans = float(standard_answer) * 10 ** digit
+        ans = float_output * 10 ** digit
+        return (abs(ans - s_ans) < 1 or comp(output, standard_answer))
 
 
 def handle_lp_error(file_path, output_folder):
